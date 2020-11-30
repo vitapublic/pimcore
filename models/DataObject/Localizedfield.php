@@ -370,8 +370,9 @@ class Localizedfield extends Model\AbstractModel implements
             /** @var Model\DataObject\ClassDefinition\Data\Localizedfields $container */
             $container = $block->getFieldDefinition('localizedfields');
         } else {
+            $class = $this->getClass();
             /** @var Model\DataObject\ClassDefinition\Data\Localizedfields $container */
-            $container = $this->getObject()->getClass()->getFieldDefinition('localizedfields');
+            $container = $class->getFieldDefinition('localizedfields');
         }
 
         return $container->getFieldDefinitions($params);
@@ -389,6 +390,8 @@ class Localizedfield extends Model\AbstractModel implements
             $params['language'] = $language;
             $params['object'] = $this->getObject();
             $params['context'] = $this->getContext();
+            $params['owner'] = $this;
+            $params['fieldname'] = $name;
 
             $isDirtyDetectionDisabled = AbstractObject::isDirtyDetectionDisabled();
             AbstractObject::disableDirtyDetection();
