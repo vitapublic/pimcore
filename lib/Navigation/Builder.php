@@ -69,7 +69,16 @@ class Builder
      *
      * @throws \Exception
      */
-    public function getNavigation($activeDocument = null, $navigationRootDocument = null, $htmlMenuIdPrefix = null, $pageCallback = null, $cache = true, ?int $maxDepth = null, ?int $cacheLifetime = null)
+    public function getNavigation($activeDocument = null,
+                                  $navigationRootDocument = null,
+                                  $htmlMenuIdPrefix = null,
+                                  $pageCallback = null,
+                                  $cache = true,
+                                  ?int $maxDepth = null,
+                                  ?int $cacheLifetime = null,
+                                  ?string $cacheKey = null,
+                                  $cacheTags = ['output','navigation'],
+                                  $updateCache = false)
     {
         $cacheEnabled = $cache !== false;
 
@@ -79,30 +88,33 @@ class Builder
             $navigationRootDocument = Document::getById(1);
         }
 
-        // the cache key consists out of the ID and the class name (eg. for hardlinks) of the root document and the optional html prefix
-        $cacheKeys = ['root_id__' . $navigationRootDocument->getId(), $htmlMenuIdPrefix, get_class($navigationRootDocument)];
+        if(empty($cacheKey)) {
+            // the cache key consists out of the ID and the class name (eg. for hardlinks) of the root document and the optional html prefix
+            $cacheKeys = ['root_id__' . $navigationRootDocument->getId(), $htmlMenuIdPrefix, get_class($navigationRootDocument)];
 
-        if (Site::isSiteRequest()) {
-            $site = Site::getCurrentSite();
-            $cacheKeys[] = 'site__' . $site->getId();
+            if (Site::isSiteRequest()) {
+                $site = Site::getCurrentSite();
+                $cacheKeys[] = 'site__' . $site->getId();
+            }
+
+            if (is_string($cache)) {
+                $cacheKeys[] = 'custom__' . $cache;
+            }
+
+            if ($pageCallback instanceof \Closure) {
+                $cacheKeys[] = 'pageCallback_' . closureHash($pageCallback);
+            }
+
+            if ($maxDepth) {
+                $cacheKeys[] = 'maxDepth_' . $maxDepth;
+            }
+
+            $cacheKey = 'nav_' . md5(serialize($cacheKeys));
         }
 
-        if (is_string($cache)) {
-            $cacheKeys[] = 'custom__' . $cache;
-        }
-
-        if ($pageCallback instanceof \Closure) {
-            $cacheKeys[] = 'pageCallback_' . closureHash($pageCallback);
-        }
-
-        if ($maxDepth) {
-            $cacheKeys[] = 'maxDepth_' . $maxDepth;
-        }
-
-        $cacheKey = 'nav_' . md5(serialize($cacheKeys));
         $navigation = CacheManager::load($cacheKey);
 
-        if (!$navigation || !$cacheEnabled) {
+        if (!$navigation || !$cacheEnabled || $updateCache) {
             $navigation = new \Pimcore\Navigation\Container();
 
             if ($navigationRootDocument->hasChildren()) {
@@ -114,7 +126,7 @@ class Builder
             // we need to force caching here, otherwise the active classes and other settings will be set and later
             // also written into cache (pass-by-reference) ... when serializing the data directly here, we don't have this problem
             if ($cacheEnabled) {
-                CacheManager::save($navigation, $cacheKey, ['output', 'navigation'], $cacheLifetime, 999, true);
+                CacheManager::save($navigation, $cacheKey, $cacheTags, $cacheLifetime, 999, true);
             }
         }
 
@@ -279,6 +291,10 @@ class Builder
         $pages = [];
         $childs = $this->getChildren($parentDocument);
         $parents[$parentDocument->getId()] = $parentDocument;
+
+        $childs = array_filter($childs, function($childDoc){
+            return $childDoc->getProperty('navigation_exclude') !== true;
+        });
 
         if (!is_array($childs)) {
             return $pages;
