@@ -134,15 +134,19 @@ class Builder
         // set active path
         $activePages = [];
 
+        $site = Frontend::getSiteForDocument($activeDocument);
+
         if ($this->requestHelper->hasMasterRequest()) {
             $request = $this->requestHelper->getMasterRequest();
 
             // try to find a page matching exactly the request uri
             $activePages = $navigation->findAllBy('uri', $request->getRequestUri());
+            $activePages = $this->filterActivePages($activePages, $site);
 
             if (empty($activePages)) {
                 // try to find a page matching the path info
                 $activePages = $navigation->findAllBy('uri', $request->getPathInfo());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
         }
 
@@ -150,23 +154,15 @@ class Builder
             if (empty($activePages)) {
                 // use the provided pimcore document
                 $activePages = $navigation->findAllBy('realFullPath', $activeDocument->getRealFullPath());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
 
             if (empty($activePages)) {
                 // find by link target
                 $activePages = $navigation->findAllBy('uri', $activeDocument->getFullPath());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
         }
-
-        $site = Frontend::getSiteForDocument($activeDocument);
-        $activePages = array_filter($activePages, function($page) use ($site) {
-            if($page->getCustomSetting('isSite') !== null) {
-                $siteId = !empty($site) ? $site->getId() : null;
-                $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
-                return $pageSiteId == $siteId;
-            }
-            return true;
-        });
 
         // cleanup active pages from links
         // pages have priority, if we don't find any active page, we use all we found
@@ -189,14 +185,7 @@ class Builder
             // we don't have an active document, so we try to build the trail on our own
             $allPages = $navigation->findAllBy('uri', '/.*/', true);
 
-            $allPages = array_filter($allPages, function($page) use ($site) {
-                if($page->getCustomSetting('isSite') !== null) {
-                    $siteId = !empty($site) ? $site->getId() : null;
-                    $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
-                    return $pageSiteId == $siteId;
-                }
-                return true;
-            });
+            $allPages = $this->filterActivePages($allPages, $site);
 
             /** @var Page|Page\Document $page */
             foreach ($allPages as $page) {
@@ -225,6 +214,19 @@ class Builder
         }
 
         return $navigation;
+    }
+
+    private function filterActivePages(array $activePages, ?Site $siteForActiveDocument) : array {
+
+        return array_filter($activePages, function($page) use ($siteForActiveDocument) {
+            if($page->getCustomSetting('isSite') !== null) {
+                $siteId = !empty($siteForActiveDocument) ? $siteForActiveDocument->getId() : null;
+                $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
+                return $pageSiteId == $siteId;
+            }
+            return true;
+        });
+
     }
 
     /**
