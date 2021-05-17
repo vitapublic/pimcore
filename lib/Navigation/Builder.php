@@ -79,7 +79,8 @@ class Builder
                                   ?int $cacheLifetime = null,
                                   ?string $cacheKey = null,
                                   $cacheTags = ['output','navigation'],
-                                  $updateCache = false)
+                                  $updateCache = false,
+                                  $disableActiveLinkRemoval = false)
     {
         $cacheEnabled = $cache !== false;
 
@@ -164,17 +165,20 @@ class Builder
             }
         }
 
-        // cleanup active pages from links
-        // pages have priority, if we don't find any active page, we use all we found
-        $tmpPages = [];
-        foreach ($activePages as $page) {
-            if ($page instanceof DocumentPage && $page->getDocumentType() != 'link') {
-                $tmpPages[] = $page;
+        if(!$disableActiveLinkRemoval) {
+            // cleanup active pages from links
+            // pages have priority, if we don't find any active page, we use all we found
+            $tmpPages = [];
+            foreach ($activePages as $page) {
+                if ($page instanceof DocumentPage && $page->getDocumentType() != 'link') {
+                    $tmpPages[] = $page;
+                }
+            }
+            if (count($tmpPages)) {
+                $activePages = $tmpPages;
             }
         }
-        if (count($tmpPages)) {
-            $activePages = $tmpPages;
-        }
+
 
         if (!empty($activePages)) {
             // we found an active document, so we can build the active trail by getting respectively the parent
