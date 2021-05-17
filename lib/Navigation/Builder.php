@@ -161,7 +161,9 @@ class Builder
         $site = Frontend::getSiteForDocument($activeDocument);
         $activePages = array_filter($activePages, function($page) use ($site) {
             if($page->getCustomSetting('isSite') !== null) {
-                return $page->getCustomSetting('site') == $site;
+                $siteId = !empty($site) ? $site->getId() : null;
+                $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
+                return $pageSiteId == $siteId;
             }
             return true;
         });
@@ -189,7 +191,9 @@ class Builder
 
             $allPages = array_filter($allPages, function($page) use ($site) {
                 if($page->getCustomSetting('isSite') !== null) {
-                    return $page->getCustomSetting('site') == $site;
+                    $siteId = !empty($site) ? $site->getId() : null;
+                    $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
+                    return $pageSiteId == $siteId;
                 }
                 return true;
             });
