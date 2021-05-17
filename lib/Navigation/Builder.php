@@ -20,6 +20,7 @@ use Pimcore\Logger;
 use Pimcore\Model\Document;
 use Pimcore\Model\Site;
 use Pimcore\Navigation\Page\Document as DocumentPage;
+use Pimcore\Tool\Frontend;
 
 class Builder
 {
@@ -157,6 +158,14 @@ class Builder
             }
         }
 
+        $site = Frontend::getSiteForDocument($activeDocument);
+        $activePages = array_filter($activePages, function($page) use ($site) {
+            if($page->getCustomSetting('isSite') !== null) {
+                return $page->getCustomSetting('site') == $site;
+            }
+            return true;
+        });
+
         // cleanup active pages from links
         // pages have priority, if we don't find any active page, we use all we found
         $tmpPages = [];
@@ -177,6 +186,13 @@ class Builder
         } else {
             // we don't have an active document, so we try to build the trail on our own
             $allPages = $navigation->findAllBy('uri', '/.*/', true);
+
+            $allPages = array_filter($allPages, function($page) use ($site) {
+                if($page->getCustomSetting('isSite') !== null) {
+                    return $page->getCustomSetting('site') == $site;
+                }
+                return true;
+            });
 
             /** @var Page|Page\Document $page */
             foreach ($allPages as $page) {
