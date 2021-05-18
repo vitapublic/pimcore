@@ -20,6 +20,7 @@ use Pimcore\Logger;
 use Pimcore\Model\Document;
 use Pimcore\Model\Site;
 use Pimcore\Navigation\Page\Document as DocumentPage;
+use Pimcore\Tool\Frontend;
 
 class Builder
 {
@@ -78,7 +79,8 @@ class Builder
                                   ?int $cacheLifetime = null,
                                   ?string $cacheKey = null,
                                   $cacheTags = ['output','navigation'],
-                                  $updateCache = false)
+                                  $updateCache = false,
+                                  $disableActiveLinkRemoval = false)
     {
         $cacheEnabled = $cache !== false;
 
@@ -133,15 +135,19 @@ class Builder
         // set active path
         $activePages = [];
 
+        $site = Frontend::getSiteForDocument($activeDocument);
+
         if ($this->requestHelper->hasMasterRequest()) {
             $request = $this->requestHelper->getMasterRequest();
 
             // try to find a page matching exactly the request uri
             $activePages = $navigation->findAllBy('uri', $request->getRequestUri());
+            $activePages = $this->filterActivePages($activePages, $site);
 
             if (empty($activePages)) {
                 // try to find a page matching the path info
                 $activePages = $navigation->findAllBy('uri', $request->getPathInfo());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
         }
 
@@ -149,25 +155,30 @@ class Builder
             if (empty($activePages)) {
                 // use the provided pimcore document
                 $activePages = $navigation->findAllBy('realFullPath', $activeDocument->getRealFullPath());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
 
             if (empty($activePages)) {
                 // find by link target
                 $activePages = $navigation->findAllBy('uri', $activeDocument->getFullPath());
+                $activePages = $this->filterActivePages($activePages, $site);
             }
         }
 
-        // cleanup active pages from links
-        // pages have priority, if we don't find any active page, we use all we found
-        $tmpPages = [];
-        foreach ($activePages as $page) {
-            if ($page instanceof DocumentPage && $page->getDocumentType() != 'link') {
-                $tmpPages[] = $page;
+        if(!$disableActiveLinkRemoval) {
+            // cleanup active pages from links
+            // pages have priority, if we don't find any active page, we use all we found
+            $tmpPages = [];
+            foreach ($activePages as $page) {
+                if ($page instanceof DocumentPage && $page->getDocumentType() != 'link') {
+                    $tmpPages[] = $page;
+                }
+            }
+            if (count($tmpPages)) {
+                $activePages = $tmpPages;
             }
         }
-        if (count($tmpPages)) {
-            $activePages = $tmpPages;
-        }
+
 
         if (!empty($activePages)) {
             // we found an active document, so we can build the active trail by getting respectively the parent
@@ -177,6 +188,8 @@ class Builder
         } else {
             // we don't have an active document, so we try to build the trail on our own
             $allPages = $navigation->findAllBy('uri', '/.*/', true);
+
+            $allPages = $this->filterActivePages($allPages, $site);
 
             /** @var Page|Page\Document $page */
             foreach ($allPages as $page) {
@@ -205,6 +218,19 @@ class Builder
         }
 
         return $navigation;
+    }
+
+    private function filterActivePages(array $activePages, ?Site $siteForActiveDocument) : array {
+
+        return array_filter($activePages, function($page) use ($siteForActiveDocument) {
+            if($page->getCustomSetting('isSite') !== null) {
+                $siteId = !empty($siteForActiveDocument) ? $siteForActiveDocument->getId() : null;
+                $pageSiteId = !empty($page->getCustomSetting('site')) ? $page->getCustomSetting('site')->getId() : null;
+                return $pageSiteId == $siteId;
+            }
+            return true;
+        });
+
     }
 
     /**
