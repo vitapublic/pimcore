@@ -152,6 +152,13 @@ class Builder
         }
 
         if ($activeDocument instanceof Document) {
+
+            if (empty($activePages)) {
+                // use the provided pimcore document
+                $activePages = $navigation->findAllBy('uri', $activeDocument->getRealFullPath());
+                $activePages = $this->filterActivePages($activePages, $site);
+            }
+
             if (empty($activePages)) {
                 // use the provided pimcore document
                 $activePages = $navigation->findAllBy('realFullPath', $activeDocument->getRealFullPath());
@@ -163,6 +170,7 @@ class Builder
                 $activePages = $navigation->findAllBy('uri', $activeDocument->getFullPath());
                 $activePages = $this->filterActivePages($activePages, $site);
             }
+
         }
 
         if(!$disableActiveLinkRemoval) {
